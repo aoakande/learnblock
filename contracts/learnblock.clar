@@ -5,6 +5,8 @@
 (define-constant err-owner-only (err u100))
 (define-constant err-not-found (err u101))
 (define-constant err-already-exists (err u102))
+(define-constant err-insufficient-shares (err u103))
+(define-constant err-transfer-failed (err u104))
 
 ;; Data Variables
 (define-data-var next-course-id uint u1)
@@ -35,12 +37,12 @@
 )
 
 (define-read-only (get-course-ownership (course-id uint) (owner principal))
-  (map-get? course-ownership { course-id: course-id, owner: owner })
+  (default-to { shares: u0 } (map-get? course-ownership { course-id: course-id, owner: owner }))
 )
 
 ;; Public functions
 
-(define-public (create-course (title (string-utf8 100)) (description (string-utf8 500)) (price uint) (total-shares uint))
+(define-public (create-course (new-title (string-utf8 100)) (new-description (string-utf8 500)) (new-price uint) (new-total-shares uint))
   (let
     (
       (course-id (var-get next-course-id))
@@ -50,34 +52,37 @@
     (map-set courses
       { course-id: course-id }
       {
-        title: title,
-        description: description,
+        title: new-title,
+        description: new-description,
         instructor: tx-sender,
-        price: price,
-        total-shares: total-shares,
-        available-shares: total-shares
+        price: new-price,
+        total-shares: new-total-shares,
+        available-shares: new-total-shares
       }
     )
     (map-set course-ownership
       { course-id: course-id, owner: tx-sender }
-      { shares: total-shares }
+      { shares: new-total-shares }
     )
     (var-set next-course-id (+ course-id u1))
     (ok course-id)
   )
 )
 
-(define-public (update-course (course-id uint) (title (string-utf8 100)) (description (string-utf8 500)) (price uint))
+(define-public (update-course (course-id uint) (new-title (string-utf8 100)) (new-description (string-utf8 500)) (new-price uint))
   (let
     (
       (course (unwrap! (map-get? courses { course-id: course-id }) err-not-found))
     )
     (asserts! (is-eq (get instructor course) tx-sender) err-owner-only)
-    (map-set courses
+    (ok (map-set courses
       { course-id: course-id }
-      (merge course { title: title, description: description, price: price })
-    )
-    (ok true)
+      (merge course { 
+        title: new-title, 
+        description: new-description, 
+        price: new-price 
+      })
+    ))
   )
 )
 
@@ -89,8 +94,9 @@
       (instructor (get instructor course))
       (price-per-share (/ (get price course) (get total-shares course)))
       (total-cost (* price-per-share shares))
+      (current-shares (get shares (get-course-ownership course-id buyer)))
     )
-    (asserts! (<= shares (get available-shares course)) (err u103))
+    (asserts! (<= shares (get available-shares course)) err-insufficient-shares)
     (try! (stx-transfer? total-cost buyer instructor))
     (map-set courses
       { course-id: course-id }
@@ -98,26 +104,27 @@
     )
     (map-set course-ownership
       { course-id: course-id, owner: buyer }
-      { shares: (default-to u0 (get shares (get-course-ownership course-id buyer))) }
+      { shares: (+ current-shares shares) }
     )
     (ok true)
   )
 )
 
-(define-public (transfer-course-shares (course-id uint) (recipient principal) (shares uint))
+(define-public (transfer-course-shares (course-id uint) (to principal) (shares uint))
   (let
     (
       (sender tx-sender)
-      (sender-shares (unwrap! (get-course-ownership course-id sender) err-not-found))
+      (sender-shares (get shares (get-course-ownership course-id sender)))
+      (recipient-shares (get shares (get-course-ownership course-id to)))
     )
-    (asserts! (>= (get shares sender-shares) shares) (err u104))
+    (asserts! (>= sender-shares shares) err-insufficient-shares)
     (map-set course-ownership
       { course-id: course-id, owner: sender }
-      { shares: (- (get shares sender-shares) shares) }
+      { shares: (- sender-shares shares) }
     )
     (map-set course-ownership
-      { course-id: course-id, owner: recipient }
-      { shares: (+ (default-to u0 (get shares (get-course-ownership course-id recipient))) shares) }
+      { course-id: course-id, owner: to }
+      { shares: (+ recipient-shares shares) }
     )
     (ok true)
   )
