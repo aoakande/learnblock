@@ -1,4 +1,4 @@
-;; BlockLearnAdemy Course Management Contract
+;; Learnblock Course Management Contract
 
 ;; Constants
 (define-constant contract-owner tx-sender)
@@ -32,7 +32,6 @@
 )
 
 ;; Read-only functions
-
 (define-read-only (get-course (course-id uint))
   (map-get? courses { course-id: course-id })
 )
@@ -42,7 +41,6 @@
 )
 
 ;; Private functions for input validation
-
 (define-private (validate-course-input (new-title (string-utf8 100)) (new-description (string-utf8 500)) (new-price uint) (new-total-shares uint))
   (and 
     (> (len new-title) u0)
@@ -52,11 +50,10 @@
   )
 )
 
-(define-private (validate-course-id (course-id uint))
-  (is-some (map-get? courses { course-id: course-id }))
-)
-
 ;; Public functions
+(define-public (course-exists (course-id uint))
+  (ok (is-some (get-course course-id)))
+)
 
 (define-public (create-course (new-title (string-utf8 100)) (new-description (string-utf8 500)) (new-price uint) (new-total-shares uint))
   (let
@@ -64,7 +61,7 @@
       (course-id (var-get next-course-id))
     )
     (asserts! (is-eq tx-sender contract-owner) err-owner-only)
-    (asserts! (is-none (map-get? courses { course-id: course-id })) err-already-exists)
+    (asserts! (is-none (get-course course-id)) err-already-exists)
     (asserts! (validate-course-input new-title new-description new-price new-total-shares) err-invalid-input)
     (map-set courses
       { course-id: course-id }
@@ -91,7 +88,6 @@
     (
       (course (unwrap! (get-course course-id) err-not-found))
     )
-    (asserts! (validate-course-id course-id) err-not-found)
     (asserts! (is-eq (get instructor course) tx-sender) err-owner-only)
     (asserts! (validate-course-input new-title new-description new-price (get total-shares course)) err-invalid-input)
     (ok (map-set courses
@@ -115,7 +111,6 @@
       (total-cost (* price-per-share shares))
       (current-shares (get shares (get-course-ownership course-id buyer)))
     )
-    (asserts! (validate-course-id course-id) err-not-found)
     (asserts! (> shares u0) err-invalid-input)
     (asserts! (<= shares (get available-shares course)) err-insufficient-shares)
     (try! (stx-transfer? total-cost buyer instructor))
@@ -138,7 +133,7 @@
       (sender-shares (get shares (get-course-ownership course-id sender)))
       (recipient-shares (get shares (get-course-ownership course-id to)))
     )
-    (asserts! (validate-course-id course-id) err-not-found)
+    (asserts! (is-some (get-course course-id)) err-not-found)
     (asserts! (> shares u0) err-invalid-input)
     (asserts! (not (is-eq to sender)) err-invalid-input)
     (asserts! (>= sender-shares shares) err-insufficient-shares)

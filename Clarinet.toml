@@ -9,6 +9,9 @@ boot_contracts = ["pox", "costs-v2", "bns"]
 [contracts.learnblock]
 path = "contracts/learnblock.clar"
 
+[contracts.studentrecord]
+path = "contracts/studentrecord.clar"
+
 [repl]
 costs_version = 2
 parser_version = 2
