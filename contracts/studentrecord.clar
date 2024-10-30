@@ -10,10 +10,14 @@
 (define-constant err-already-completed (err u105))
 
 ;; Define the trait for course management
-(use-trait course-management-trait .blocklearnademy.course-management-trait)
+(define-trait course-management-trait
+  (
+    (course-exists (uint) (response bool uint))
+  )
+)
 
 ;; Define the principal of the course management contract
-(define-data-var course-management-contract principal tx-sender)
+(define-data-var course-management-contract (optional principal) none)
 
 ;; Data Maps
 (define-map student-enrollments
@@ -42,7 +46,10 @@
 ;; Private functions
 
 (define-private (validate-course-id (course-id uint))
-  (contract-call? (unwrap! (contract-of course-management-trait) err-not-found) validate-course-id course-id)
+  (match (var-get course-management-contract)
+    course-contract (contract-call? course-contract course-exists course-id)
+    err-not-found
+  )
 )
 
 (define-private (update-student-achievements (student principal) (course-id uint) (credits uint))
@@ -67,7 +74,7 @@
 (define-public (set-course-management-contract (new-contract principal))
   (begin
     (asserts! (is-eq tx-sender contract-owner) err-owner-only)
-    (var-set course-management-contract new-contract)
+    (var-set course-management-contract (some new-contract))
     (ok true)
   )
 )
