@@ -9,13 +9,6 @@
 (define-constant err-not-enrolled (err u104))
 (define-constant err-already-completed (err u105))
 
-;; Define the trait for course management
-(define-trait course-management-trait
-  (
-    (course-exists (uint) (response bool uint))
-  )
-)
-
 ;; Define the principal of the course management contract
 (define-data-var course-management-contract (optional principal) none)
 
@@ -31,7 +24,6 @@
 )
 
 ;; Read-only functions
-
 (define-read-only (get-student-enrollment (student principal) (course-id uint))
   (map-get? student-enrollments { student: student, course-id: course-id })
 )
@@ -44,14 +36,6 @@
 )
 
 ;; Private functions
-
-(define-private (validate-course-id (course-id uint))
-  (match (var-get course-management-contract)
-    course-contract (contract-call? course-contract course-exists course-id)
-    err-not-found
-  )
-)
-
 (define-private (update-student-achievements (student principal) (course-id uint) (credits uint))
   (let
     (
@@ -59,18 +43,17 @@
       (updated-courses (unwrap! (as-max-len? (append (get courses-completed current-achievements) course-id) u100) err-invalid-input))
       (updated-credits (+ (get total-credits current-achievements) credits))
     )
-    (map-set student-achievements
+    (ok (map-set student-achievements
       { student: student }
       {
         courses-completed: updated-courses,
         total-credits: updated-credits
       }
-    )
+    ))
   )
 )
 
 ;; Public functions
-
 (define-public (set-course-management-contract (new-contract principal))
   (begin
     (asserts! (is-eq tx-sender contract-owner) err-owner-only)
@@ -81,7 +64,6 @@
 
 (define-public (enroll-student (student principal) (course-id uint))
   (begin
-    (try! (validate-course-id course-id))
     (asserts! (is-none (get-student-enrollment student course-id)) err-already-exists)
     (ok (map-set student-enrollments
       { student: student, course-id: course-id }
@@ -110,12 +92,11 @@
       (enrollment (unwrap! (get-student-enrollment student course-id) err-not-enrolled))
     )
     (asserts! (is-none (get completed-at enrollment)) err-already-completed)
-    (map-set student-enrollments
+    (try! (update-student-achievements student course-id u1))
+    (ok (map-set student-enrollments
       { student: student, course-id: course-id }
       (merge enrollment { completed-at: (some block-height), progress: u100 })
-    )
-    (update-student-achievements student course-id u1) ;; Assuming each course is worth 1 credit
-    (ok true)
+    ))
   )
 )
 

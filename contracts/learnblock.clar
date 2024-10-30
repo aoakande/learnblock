@@ -32,7 +32,6 @@
 )
 
 ;; Read-only functions
-
 (define-read-only (get-course (course-id uint))
   (map-get? courses { course-id: course-id })
 )
@@ -42,7 +41,6 @@
 )
 
 ;; Private functions for input validation
-
 (define-private (validate-course-input (new-title (string-utf8 100)) (new-description (string-utf8 500)) (new-price uint) (new-total-shares uint))
   (and 
     (> (len new-title) u0)
@@ -53,7 +51,6 @@
 )
 
 ;; Public functions
-
 (define-public (course-exists (course-id uint))
   (ok (is-some (get-course course-id)))
 )
