@@ -7,6 +7,7 @@
 (define-constant err-already-exists (err u102))
 (define-constant err-insufficient-shares (err u103))
 (define-constant err-transfer-failed (err u104))
+(define-constant err-invalid-input (err u105))
 
 ;; Data Variables
 (define-data-var next-course-id uint u1)
@@ -40,6 +41,17 @@
   (default-to { shares: u0 } (map-get? course-ownership { course-id: course-id, owner: owner }))
 )
 
+;; Private functions for input validation
+
+(define-private (validate-course-input (new-title (string-utf8 100)) (new-description (string-utf8 500)) (new-price uint) (new-total-shares uint))
+  (and 
+    (> (len new-title) u0)
+    (> (len new-description) u0)
+    (> new-price u0)
+    (> new-total-shares u0)
+  )
+)
+
 ;; Public functions
 
 (define-public (create-course (new-title (string-utf8 100)) (new-description (string-utf8 500)) (new-price uint) (new-total-shares uint))
@@ -49,6 +61,7 @@
     )
     (asserts! (is-eq tx-sender contract-owner) err-owner-only)
     (asserts! (is-none (map-get? courses { course-id: course-id })) err-already-exists)
+    (asserts! (validate-course-input new-title new-description new-price new-total-shares) err-invalid-input)
     (map-set courses
       { course-id: course-id }
       {
@@ -75,6 +88,7 @@
       (course (unwrap! (map-get? courses { course-id: course-id }) err-not-found))
     )
     (asserts! (is-eq (get instructor course) tx-sender) err-owner-only)
+    (asserts! (validate-course-input new-title new-description new-price (get total-shares course)) err-invalid-input)
     (ok (map-set courses
       { course-id: course-id }
       (merge course { 
@@ -96,6 +110,7 @@
       (total-cost (* price-per-share shares))
       (current-shares (get shares (get-course-ownership course-id buyer)))
     )
+    (asserts! (> shares u0) err-invalid-input)
     (asserts! (<= shares (get available-shares course)) err-insufficient-shares)
     (try! (stx-transfer? total-cost buyer instructor))
     (map-set courses
@@ -117,6 +132,8 @@
       (sender-shares (get shares (get-course-ownership course-id sender)))
       (recipient-shares (get shares (get-course-ownership course-id to)))
     )
+    (asserts! (> shares u0) err-invalid-input)
+    (asserts! (not (is-eq to sender)) err-invalid-input)
     (asserts! (>= sender-shares shares) err-insufficient-shares)
     (map-set course-ownership
       { course-id: course-id, owner: sender }
