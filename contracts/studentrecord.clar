@@ -9,8 +9,11 @@
 (define-constant err-not-enrolled (err u104))
 (define-constant err-already-completed (err u105))
 
+;; Define the trait for course management
+(use-trait course-management-trait .blocklearnademy.course-management-trait)
+
 ;; Define the principal of the course management contract
-(define-constant course-management-contract .course-management)
+(define-data-var course-management-contract principal tx-sender)
 
 ;; Data Maps
 (define-map student-enrollments
@@ -39,9 +42,7 @@
 ;; Private functions
 
 (define-private (validate-course-id (course-id uint))
-  ;; This function should check if the course exists in the course management contract
-  ;; We'll assume the course management contract has a function called 'course-exists'
-  (contract-call? course-management-contract course-exists course-id)
+  (contract-call? (unwrap! (contract-of course-management-trait) err-not-found) validate-course-id course-id)
 )
 
 (define-private (update-student-achievements (student principal) (course-id uint) (credits uint))
@@ -63,9 +64,17 @@
 
 ;; Public functions
 
+(define-public (set-course-management-contract (new-contract principal))
+  (begin
+    (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+    (var-set course-management-contract new-contract)
+    (ok true)
+  )
+)
+
 (define-public (enroll-student (student principal) (course-id uint))
   (begin
-    (asserts! (validate-course-id course-id) err-not-found)
+    (try! (validate-course-id course-id))
     (asserts! (is-none (get-student-enrollment student course-id)) err-already-exists)
     (ok (map-set student-enrollments
       { student: student, course-id: course-id }
