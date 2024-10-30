@@ -1,14 +1,4 @@
-;; BlockLearnAdemy Course Management Contract
-
-;; Define the trait for course management
-(define-trait course-management-trait
-  (
-    (validate-course-id (uint) (response bool uint))
-  )
-)
-
-;; Implement the trait
-(impl-trait .blocklearnademy.course-management-trait)
+;; Learnblock Course Management Contract
 
 ;; Constants
 (define-constant contract-owner tx-sender)
@@ -64,8 +54,8 @@
 
 ;; Public functions
 
-(define-public (validate-course-id (course-id uint))
-  (ok (is-some (map-get? courses { course-id: course-id })))
+(define-public (course-exists (course-id uint))
+  (ok (is-some (get-course course-id)))
 )
 
 (define-public (create-course (new-title (string-utf8 100)) (new-description (string-utf8 500)) (new-price uint) (new-total-shares uint))
@@ -74,7 +64,7 @@
       (course-id (var-get next-course-id))
     )
     (asserts! (is-eq tx-sender contract-owner) err-owner-only)
-    (asserts! (is-none (map-get? courses { course-id: course-id })) err-already-exists)
+    (asserts! (is-none (get-course course-id)) err-already-exists)
     (asserts! (validate-course-input new-title new-description new-price new-total-shares) err-invalid-input)
     (map-set courses
       { course-id: course-id }
@@ -101,7 +91,6 @@
     (
       (course (unwrap! (get-course course-id) err-not-found))
     )
-    (asserts! (is-some (get-course course-id)) err-not-found)
     (asserts! (is-eq (get instructor course) tx-sender) err-owner-only)
     (asserts! (validate-course-input new-title new-description new-price (get total-shares course)) err-invalid-input)
     (ok (map-set courses
@@ -125,7 +114,6 @@
       (total-cost (* price-per-share shares))
       (current-shares (get shares (get-course-ownership course-id buyer)))
     )
-    (asserts! (is-some (get-course course-id)) err-not-found)
     (asserts! (> shares u0) err-invalid-input)
     (asserts! (<= shares (get available-shares course)) err-insufficient-shares)
     (try! (stx-transfer? total-cost buyer instructor))
