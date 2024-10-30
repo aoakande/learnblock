@@ -52,6 +52,10 @@
   )
 )
 
+(define-private (validate-course-id (course-id uint))
+  (is-some (map-get? courses { course-id: course-id }))
+)
+
 ;; Public functions
 
 (define-public (create-course (new-title (string-utf8 100)) (new-description (string-utf8 500)) (new-price uint) (new-total-shares uint))
@@ -85,8 +89,9 @@
 (define-public (update-course (course-id uint) (new-title (string-utf8 100)) (new-description (string-utf8 500)) (new-price uint))
   (let
     (
-      (course (unwrap! (map-get? courses { course-id: course-id }) err-not-found))
+      (course (unwrap! (get-course course-id) err-not-found))
     )
+    (asserts! (validate-course-id course-id) err-not-found)
     (asserts! (is-eq (get instructor course) tx-sender) err-owner-only)
     (asserts! (validate-course-input new-title new-description new-price (get total-shares course)) err-invalid-input)
     (ok (map-set courses
@@ -103,13 +108,14 @@
 (define-public (buy-course-shares (course-id uint) (shares uint))
   (let
     (
-      (course (unwrap! (map-get? courses { course-id: course-id }) err-not-found))
+      (course (unwrap! (get-course course-id) err-not-found))
       (buyer tx-sender)
       (instructor (get instructor course))
       (price-per-share (/ (get price course) (get total-shares course)))
       (total-cost (* price-per-share shares))
       (current-shares (get shares (get-course-ownership course-id buyer)))
     )
+    (asserts! (validate-course-id course-id) err-not-found)
     (asserts! (> shares u0) err-invalid-input)
     (asserts! (<= shares (get available-shares course)) err-insufficient-shares)
     (try! (stx-transfer? total-cost buyer instructor))
@@ -132,6 +138,7 @@
       (sender-shares (get shares (get-course-ownership course-id sender)))
       (recipient-shares (get shares (get-course-ownership course-id to)))
     )
+    (asserts! (validate-course-id course-id) err-not-found)
     (asserts! (> shares u0) err-invalid-input)
     (asserts! (not (is-eq to sender)) err-invalid-input)
     (asserts! (>= sender-shares shares) err-insufficient-shares)
